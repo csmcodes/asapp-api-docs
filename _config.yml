@@ -1,0 +1,4 @@
+theme: jekyll-theme-cayman
+title: "Asapp Electronic — API de Integración"
+description: "Guía para desarrolladores de sistemas externos (ERPs, sistemas contables) que integran con la API de comprobantes electrónicos SRI Ecuador."
+show_downloads: false
