@@ -1,8 +1,15 @@
 # Asapp Electronic — Guía de Integración API Externa
 
-> Versión: 1.0 · Última actualización: 2026-05-08  
-> Base URL (staging): `https://asapp-electronic-api-dev.azurewebsites.net/api`  
-> Base URL (producción): `https://asapp-electronic-api.azurewebsites.net/api`
+> Versión: 1.0 · Última actualización: 2026-05-08
+
+## Ambientes
+
+| Ambiente | Base URL | Campo `ambiente` en requests |
+|----------|----------|-------------------------------|
+| **Desarrollo** | `https://asapp-electronic-api-dev.azurewebsites.net/api` | `"Pruebas"` |
+| **Producción** | `https://asapp-electronic-api.azurewebsites.net/api` | `"Produccion"` |
+
+> **Importante:** El campo `ambiente` en cada request debe coincidir con el entorno donde estás operando. Los comprobantes emitidos en `"Pruebas"` no tienen validez tributaria.
 
 Esta guía está dirigida a desarrolladores de sistemas externos (ERPs, sistemas contables, puntos de venta) que necesitan emitir comprobantes electrónicos SRI Ecuador a través de la API de Asapp.
 
@@ -660,4 +667,4 @@ Ambos endpoints aceptan un **array JSON** en el body. El procesamiento es secuen
 ## Soporte
 
 Para dudas técnicas o reporte de errores de integración:  
-**soporte@csmcodes.com** · Asunto: `[API Externa] <descripción breve>`
+**admin@csmcodes.com** · Asunto: `[API Externa] <descripción breve>`
