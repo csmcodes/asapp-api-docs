@@ -1,13 +1,13 @@
 # Asapp Electronic — Guía de Integración API Externa
 
-> Versión: 1.0 · Última actualización: 2026-05-08
+> Versión: 1.1 · Última actualización: 2026-07-08
 
 ## Ambientes
 
 | Ambiente | Base URL | Campo `ambiente` en requests |
 |----------|----------|-------------------------------|
-| **Desarrollo** | `https://asapp-electronic-api-dev.azurewebsites.net/api` | `"Pruebas"` |
-| **Producción** | `https://asapp-electronic-api.azurewebsites.net/api` | `"Produccion"` |
+| **Desarrollo** | `https://electronic-api-dev.asapp.com.ec/api` | `"Pruebas"` |
+| **Producción** | `https://electronic-api.asapp.com.ec/api` | `"Produccion"` |
 
 > **Importante:** El campo `ambiente` en cada request debe coincidir con el entorno donde estás operando. Los comprobantes emitidos en `"Pruebas"` no tienen validez tributaria.
 
@@ -131,11 +131,19 @@ POST /v1/api/xml
 {
   "tipoDocumento": "01",
   "ambiente": "Produccion",
-  "xmlBase64": "<XML completo codificado en Base64>"
+  "xmlBase64": "<XML completo codificado en Base64>",
+  "emailCliente": "cliente@empresa.com"
 }
 ```
 
-El XML debe ser válido según los XSD v1.1.0 del SRI. Asapp lo valida antes de persistirlo.
+| Campo | Tipo | Req. | Descripción |
+|-------|------|------|-------------|
+| `tipoDocumento` | string | ✅ | `"01"` Factura · `"03"` LC · `"04"` NC · `"05"` ND · `"06"` GR · `"07"` Retención |
+| `ambiente` | string | ✅ | `"Pruebas"` o `"Produccion"` |
+| `xmlBase64` | string | ✅ | XML SRI completo codificado en Base64. Debe ser válido según XSD v1.1.0. |
+| `emailCliente` | string | — | Email(s) destino para enviar el RIDE una vez autorizado. Acepta múltiples direcciones separadas por `,`, `;` o `\|`. Si se omite, Asapp usa el email declarado en el XML (`<emailCliente>` en `<infoFactura>`). |
+
+> **Nota:** El email solo se envía si el SRI autoriza el comprobante. No se envía para comprobantes rechazados o con error.
 
 ---
 
