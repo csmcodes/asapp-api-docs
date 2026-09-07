@@ -1,6 +1,6 @@
 # Asapp Electronic — Guía de Integración API Externa
 
-> Versión: 2.0 (v1 — JSON estructurado con códigos SRI) · Última actualización: 2026-08-28
+> Versión: 2.0 (v1 — JSON estructurado con códigos SRI) · Última actualización: 2026-09-07
 
 > **¿Preferís no trabajar con códigos SRI crudos?** Existe una **[API v2 business-friendly](v2.html)**
 > que acepta valores de negocio legibles (`"factura"`, `"efectivo"`, `15%`) — misma plataforma,
@@ -97,9 +97,15 @@ HTTP 202 Accepted
   "claveAcceso": "0805202601179240190100110010010000001841234567818",
   "numeroComprobante": "001-001-000000184",
   "estado": "Generado",
-  "error": null
+  "error": null,
+  "errorCode": null
 }
 ```
+
+`error` es texto libre pensado para mostrar al usuario final — puede cambiar de redacción sin
+aviso. **Para lógica de negocio, comparar siempre contra `errorCode`** (estable, ej.
+`"PlacaRequerida"`, `"SECUENCIAL_DUPLICADO"`, `"EstablecimientoNotFound"`), nunca contra el texto
+de `error`.
 
 ---
 
@@ -155,7 +161,7 @@ HTTP 202 Accepted
 
 | Campo | Tipo | Req. | Descripción |
 |-------|------|------|-------------|
-| `placa` | string(20) | ⚠️ | Placa del vehículo. **Obligatoria solo si la empresa está registrada en Asapp como operadora de transporte terrestre.** Si falta en ese caso, la API rechaza con `422` y `error: "PlacaRequerida"` antes de generar el XML. Para empresas que no son operadoras de transporte, este campo se ignora si se envía. |
+| `placa` | string(20) | ⚠️ | Placa del vehículo. **Obligatoria solo si la empresa está registrada en Asapp como operadora de transporte terrestre** y no tiene una excepción puntual activada (configurable solo por Asapp, caso por caso). Si falta y aplica, la API rechaza con `422` y `errorCode: "PlacaRequerida"` antes de generar el XML. Para empresas que no son operadoras de transporte, este campo se ignora si se envía. |
 
 ### NC (04) y ND (05) — campos adicionales
 
@@ -274,11 +280,15 @@ t+0s → t+5s → t+15s → t+30s → t+60s → t+120s → t+300s (último)
 
 ## 7. Batch (lote)
 
-El endpoint acepta un **array JSON** en el body. Máximo **10 ítems** por request.
+Ambos endpoints (JSON y XML) aceptan un **array JSON** en el body. Máximo **10 ítems** por
+request. **El comportamiento no es el mismo entre los dos** — presta atención a cuál estás
+usando.
 
-- Procesamiento secuencial — si un ítem falla, los siguientes continúan.
-- HTTP 207 Multi-Status si hay éxitos y fallos mezclados.
-- HTTP 422 si todos fallaron.
+### `POST /v1/api/xml` — batch síncrono
+
+- Procesamiento secuencial en el mismo request — si un ítem falla, los siguientes continúan.
+- HTTP 207 Multi-Status si hay éxitos y fallos mezclados. HTTP 422 si todos fallaron.
+- Cada ítem de la respuesta incluye `index` (0-based).
 
 ```json
 // Request
@@ -286,10 +296,53 @@ El endpoint acepta un **array JSON** en el body. Máximo **10 ítems** por reque
 
 // Respuesta 207
 [
-  { "index": 0, "comprobanteId": 1848, "estado": "Generado", "error": null },
-  { "index": 1, "comprobanteId": null, "estado": "Error", "error": "Punto de emisión '003' no encontrado." }
+  { "index": 0, "comprobanteId": 1848, "estado": "Generado", "error": null, "errorCode": null },
+  { "index": 1, "comprobanteId": null, "estado": "Error", "error": "Punto de emisión '003' no encontrado.", "errorCode": "PuntoEmisionNotFound" }
 ]
 ```
+
+### `POST /v1/api/comprobantes` — batch asíncrono (2+ ítems)
+
+Con **2 o más** ítems, este endpoint no procesa en línea — responde de inmediato con un `batchId`
+y arma el resto en background:
+
+```json
+// Request: array con 2+ ítems → 202 Accepted inmediato
+{
+  "batchId": "a1b2c3d4-...",
+  "total": 5,
+  "mensaje": "Batch en procesamiento. Consulta el estado en GET /v1/api/batches/{batchId}"
+}
+```
+
+Consultar el resultado con:
+
+```
+GET /v1/api/batches/{batchId}
+X-Api-Key: asapp_...
+```
+
+```json
+{
+  "batchId": "a1b2c3d4-...",
+  "estado": "Completado",
+  "total": 5,
+  "procesados": 5,
+  "ok": 4,
+  "errores": 1,
+  "items": [
+    { "index": 0, "comprobanteId": 1848, "estado": "Generado", "error": null, "errorCode": null },
+    { "index": 1, "comprobanteId": null, "estado": "Error", "error": "Punto de emisión '003' no encontrado.", "errorCode": "PuntoEmisionNotFound" }
+  ]
+}
+```
+
+`estado` es `"Procesando"` mientras corre, `"Completado"` cuando termina (revisar `items` para ver
+éxitos/errores individuales), o `"Error"` si el batch completo falló. Pollear igual que el estado
+de un comprobante individual (cada 5-15s).
+
+**Con exactamente 1 ítem**, `POST /v1/api/comprobantes` responde síncrono (202 o 422) igual que
+siempre — el modo batch con `batchId` solo aplica a partir de 2 ítems.
 
 ---
 
@@ -531,7 +584,7 @@ POST /v1/api/xml
 
 **Placa (operadoras de transporte):** si `tipoDocumento` es Factura (`"01"`) y la empresa está
 registrada como operadora de transporte, el XML enviado debe incluir el elemento `<placa>` dentro
-de `<infoFactura>`. Si falta, la API rechaza con `422` y `error: "PlacaRequerida"` antes de firmar.
+de `<infoFactura>`. Si falta, la API rechaza con `422` y `errorCode: "PlacaRequerida"` antes de firmar.
 
 **RUC Proveedor:** ver la sección ["`infoAdicional` — campo reservado RUC Proveedor"](#infoadicional--campo-reservado-ruc-proveedor) — aplica igual a este endpoint, inyectado sobre el XML recibido antes de firmar.
 
