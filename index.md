@@ -1,6 +1,11 @@
 # Asapp Electronic — Guía de Integración API Externa
 
-> Versión: 2.0 · Última actualización: 2026-07-08
+> Versión: 2.0 (v1 — JSON estructurado con códigos SRI) · Última actualización: 2026-08-28
+
+> **¿Preferís no trabajar con códigos SRI crudos?** Existe una **[API v2 business-friendly](v2.html)**
+> que acepta valores de negocio legibles (`"factura"`, `"efectivo"`, `15%`) — misma plataforma,
+> mismo flujo asíncrono, sin necesidad de conocer los catálogos SRI. Esta guía (v1) sigue vigente
+> para integraciones que ya generan XML propio o prefieren los códigos SRI directos.
 
 ## Ambientes
 
@@ -146,6 +151,12 @@ HTTP 202 Accepted
 }
 ```
 
+### FAC (01) — campos adicionales
+
+| Campo | Tipo | Req. | Descripción |
+|-------|------|------|-------------|
+| `placa` | string(20) | ⚠️ | Placa del vehículo. **Obligatoria solo si la empresa está registrada en Asapp como operadora de transporte terrestre.** Si falta en ese caso, la API rechaza con `422` y `error: "PlacaRequerida"` antes de generar el XML. Para empresas que no son operadoras de transporte, este campo se ignora si se envía. |
+
 ### NC (04) y ND (05) — campos adicionales
 
 | Campo | Tipo | Req. | Descripción |
@@ -187,6 +198,20 @@ HTTP 202 Accepted
 | `razonSocialSujetoRetenido` | string(300) | ✅ | |
 | `emailSujetoRetenido` | string | — | Email para notificación del RIDE |
 | `docsSustento` | array | ✅ | Documentos de sustento con sus retenciones |
+
+### `infoAdicional` — campo reservado "RUC Proveedor"
+
+Si la empresa tiene configurado un RUC de proveedor de servicios de facturación electrónica
+(Resolución NAC-DGERCGC26-00000027, Anexo 26), Asapp agrega automáticamente un `campoAdicional`
+con `nombre: "RUC Proveedor"` al XML de todos los tipos de comprobante.
+
+**Este campo lo controla Asapp, no el sistema externo.** Si el `infoAdicional` enviado en el
+request ya incluye un elemento con `nombre: "RUC Proveedor"`, Asapp lo **sobrescribe** con el
+valor configurado — nunca se duplica el campo ni se respeta el valor enviado por el cliente. Si
+la empresa no tiene RUC de proveedor configurado, el campo simplemente no se agrega.
+
+Aplica tanto al endpoint JSON como al endpoint XML — en este último caso, el campo se inyecta
+sobre el XML recibido antes de firmarlo, aunque el XML ya lo trajera.
 
 ---
 
@@ -503,6 +528,12 @@ POST /v1/api/xml
 | `emailCliente` | string | — | Email(s) para RIDE. Si se omite, Asapp extrae `<emailCliente>` del `<infoFactura>` en el XML. |
 
 > El XML **no debe incluir** `<emailCliente>` dentro de `<infoFactura>` — el SRI rechaza ese campo. Siempre pasar el email en el campo JSON del request.
+
+**Placa (operadoras de transporte):** si `tipoDocumento` es Factura (`"01"`) y la empresa está
+registrada como operadora de transporte, el XML enviado debe incluir el elemento `<placa>` dentro
+de `<infoFactura>`. Si falta, la API rechaza con `422` y `error: "PlacaRequerida"` antes de firmar.
+
+**RUC Proveedor:** ver la sección ["`infoAdicional` — campo reservado RUC Proveedor"](#infoadicional--campo-reservado-ruc-proveedor) — aplica igual a este endpoint, inyectado sobre el XML recibido antes de firmar.
 
 ---
 
